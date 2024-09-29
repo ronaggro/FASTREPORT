@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cargador de Imágenes Geo Avanzado</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.20/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f0f4f8;
+        }
+        .numbered-marker {
+            background-color: #3b82f6;
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .leaflet-popup-content-wrapper {
+            max-width: 300px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .leaflet-popup-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+        }
+        #map, #summary-map, #popup-map {
+            height: 400px;
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .step-indicator {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .step-indicator.active {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.3);
+        }
+        .custom-file-upload {
+            border: 2px dashed #3b82f6;
+            display: inline-block;
+            padding: 6px 12px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+        .custom-file-upload:hover {
+            background-color: #e6f0ff;
+        }
+        .image-preview {
+            transition: transform 0.3s ease;
+        }
+        .image-preview:hover {
+            transform: scale(1.05);
+        }
+        .map-type-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background-color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .compass {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            font-size: 24px;
+            color: #3b82f6;
+            background-color: white;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <div class="bg-white shadow-lg rounded-lg p-6 mb-8">
+            <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">Cargador de Imágenes Geo Avanzado</h1>
+            <div class="flex justify-between mb-8">
+                <div class="step-indicator bg-gray-200 text-gray-600" id="step1-indicator">1</div>
+                <div class="step-indicator bg-gray-200 text-gray-600" id="step2-indicator">2</div>
+                <div class="step-indicator bg-gray-200 text-gray-600" id="step3-indicator">3</div>
+                <div class="step-indicator bg-gray-200 text-gray-600" id="step4-indicator">4</div>
+            </div>
+
+            <div id="step1" class="step">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-700">Datos generales</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="relative">
+                        <i class="fas fa-building absolute text-gray-500 top-3 left-3"></i>
+                        <input type="text" id="centro" placeholder="Centro" class="w-full p-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+                    <div class="relative">
+                        <i class="fas fa-ship absolute text-gray-500 top-3 left-3"></i>
+                        <input type="text" id="embarcacion" placeholder="Embarcación" class="w-full p-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+                    <div class="relative">
+                        <i class="fas fa-user absolute text-gray-500 top-3 left-3"></i>
+                        <input type="text" id="usuario" placeholder="Usuario" class="w-full p-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+                    <div class="relative">
+                        <i class="fas fa-calendar absolute text-gray-500 top-3 left-3"></i>
+                        <input type="date" id="fecha" class="w-full p-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+                </div>
+                <div class="relative mt-4">
+                    <i class="fas fa-comment absolute text-gray-500 top-3 left-3"></i>
+                    <textarea id="comentarios" placeholder="Comentarios" class="w-full p-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
+                </div>
+                <div class="mt-6">
+                    <h3 class="font-semibold mb-2 text-gray-700">Logo empresa de servicio</h3>
+                    <label for="logo-servicio-upload" class="custom-file-upload">
+                        <i class="fas fa-cloud-upload-alt mr-2"></i>Subir Logo
+                    </label>
+                    <input id="logo-servicio-upload" type="file" accept="image/*" class="hidden">
+                    <div id="logo-servicio-preview" class="mt-2"></div>
+                </div>
+                <div class="mt-6">
+                    <h3 class="font-semibold mb-2 text-gray-700">Logo empresa mandante</h3>
+                    <label for="logo-mandante-upload" class="custom-file-upload">
+                        <i class="fas fa-cloud-upload-alt mr-2"></i>Subir Logo
+                    </label>
+                    <input id="logo-mandante-upload" type="file" accept="image/*" class="hidden">
+                    <div id="logo-mandante-preview" class="mt-2"></div>
+                </div>
+            </div>
+
+            <div id="step2" class="step hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-700">Agregar imágenes Georreferenciadas</h2>
+                <label for="image-upload" class="custom-file-upload block w-full text-center py-4">
+                    <i class="fas fa-images mr-2"></i>Seleccionar Imágenes
+                </label>
+                <input type="file" id="image-upload" multiple accept="image/*" class="hidden">
+                <div id="image-list" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6"></div>
+            </div>
+
+            <div id="step3" class="step hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-700">Agregar Mapa</h2>
+                <div id="map" class="rounded-lg overflow-hidden shadow-lg relative">
+                    <button id="toggle-map-type" class="map-type-toggle">Cambiar tipo de mapa</button>
+                    <div class="compass">&#9728;</div>
+                </div>
+            </div>
+
+            <div id="step4" class="step hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-700">Resumen y Exportación</h2>
+                <div id="summary" class="mb-6 bg-gray-50 p-4 rounded-lg shadow"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <div id="summary-map" class="mb-4 rounded-lg overflow-hidden shadow-lg relative">
+                            <button id="toggle-summary-map-type" class="map-type-toggle">Cambiar tipo de mapa</button>
+                            <div class="compass">&#9728;</div>
+                        </div>
+                        <button onclick="captureMap()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300 mt-2">
+                            <i class="fas fa-camera mr-2"></i>Capturar Mapa
+                        </button>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h3 class="font-semibold mb-2 text-gray-700">Estadísticas</h3>
+                        <ul id="statistics" class="list-disc pl-5"></ul>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow mb-6">
+                    <h3 class="font-semibold mb-2 text-gray-700">Imágenes y Detalles</h3>
+                    <div id="image-details" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+                </div>
+                <div class="flex justify-center space-x-4">
+                    <button onclick="exportPDF()" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition duration-300 flex items-center">
+                        <i class="fas fa-file-pdf mr-2"></i>Exportar PDF
+                    </button>
+                    <button onclick="exportDOCX()" class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition duration-300 flex items-center">
+                        <i class="fas fa-file-word mr-2"></i>Exportar DOCX
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-between mt-8">
+                <button id="prevBtn" onclick="changeStep(-1)" class="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition duration-300">
+                    <i class="fas fa-arrow-left mr-2"></i>Anterior
+                </button>
+                <button id="nextBtn" onclick="changeStep(1)" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition duration-300">
+                    Siguiente<i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="map-popup" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+        <div class="bg-white p-6 rounded-lg w-11/12 max-w-2xl">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Seleccionar ubicación</h2>
+            <div id="popup-map" class="h-96 mb-4 rounded-lg overflow-hidden shadow-lg relative">
+                <button id="toggle-popup-map-type" class="map-type-toggle">Cambiar tipo de mapa</button>
+                <div class="compass">&#9728;</div>
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button id="accept-location" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300">
+                    <i class="fas fa-check mr-2"></i>Aceptar
+                </button>
+                <button onclick="closePopup()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition duration-300">
+                    <i class="fas fa-times mr-2"></i>Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let logoServ = null;
+        let logoMandante = null;
+        let geoImages = [];
+        let map, popupMap, summaryMap;
+        let markers = {};
+        let currentImageIndex = null;
+        let mapLayers = {};
+
+        function changeStep(direction) {
+            const newStep = currentStep + direction;
+            if (newStep >= 1 && newStep <= 4) {
+                document.getElementById(`step${currentStep}`).classList.add('hidden');
+                document.getElementById(`step${newStep}`).classList.remove('hidden');
+                document.getElementById(`step${currentStep}-indicator`).classList.remove('active');
+                document.getElementById(`step${newStep}-indicator`).classList.add('active');
+                currentStep = newStep;
+            }
+            updateButtons();
+            if (currentStep === 3 && !map) {
+                initMap();
+            }
+            if (currentStep === 4) {
+                updateSummary();
+            }
+        }
+
+        function updateButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            prevBtn.disabled = currentStep === 1;
+            prevBtn.classList.toggle('opacity-50', currentStep === 1);
+            if (currentStep === 4) {
+                nextBtn.style.display = 'none';
+            } else {
+                nextBtn.style.display = 'inline-flex';
+                nextBtn.innerHTML = 'Siguiente<i class="fas fa-arrow-right ml-2"></i>';
+            }
+        }
+
+        function createNumberedMarker(number) {
+            return L.divIcon({
+                className: 'numbered-marker',
+                html: number,
+                iconSize: [30, 30],
+                iconAnchor: [15,15]
+            });
+        }
+
+        function initMap() {
+            mapLayers.map = createMapLayers('map');
+            map = L.map('map', {
+                layers: [mapLayers.map.streets]
+            }).setView([-41.4, -72.9], 7);
+            
+            document.getElementById('toggle-map-type').addEventListener('click', function() {
+                toggleMapType(map, mapLayers.map);
+            });
+
+            updateMapMarkers();
+        }
+
+        function createMapLayers(mapId) {
+            return {
+                streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }),
+                satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                }),
+                hybrid: L.layerGroup([
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                    }),
+                    L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner-hybrid/{z}/{x}/{y}{r}.{ext}', {
+                        attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a> &mdash; Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                        subdomains: 'abcd',
+                        minZoom: 0,
+                        maxZoom: 20,
+                        ext: 'png'
+                    })
+                ])
+            };
+        }
+
+        function toggleMapType(mapInstance, layers) {
+            if (mapInstance.hasLayer(layers.streets)) {
+                mapInstance.removeLayer(layers.streets);
+                mapInstance.addLayer(layers.satellite);
+            } else if (mapInstance.hasLayer(layers.satellite)) {
+                mapInstance.removeLayer(layers.satellite);
+                mapInstance.addLayer(layers.hybrid);
+            } else {
+                mapInstance.removeLayer(layers.hybrid);
+                mapInstance.addLayer(layers.streets);
+            }
+        }
+
+        function updateSummary() {
+            const summaryDiv = document.getElementById('summary');
+            summaryDiv.innerHTML = `
+                <h3 class="font-semibold mb-2 text-gray-700">Datos Generales</h3>
+                <p><strong>Centro:</strong> ${document.getElementById('centro').value}</p>
+                <p><strong>Embarcación:</strong> ${document.getElementById('embarcacion').value}</p>
+                <p><strong>Usuario:</strong> ${document.getElementById('usuario').value}</p>
+                <p><strong>Fecha:</strong> ${document.getElementById('fecha').value}</p>
+                <p><strong>Comentarios:</strong> ${document.getElementById('comentarios').value}</p>
+                <h3 class="font-semibold mt-4 mb-2 text-gray-700">Imágenes Georreferenciadas</h3>
+                <p>Total de imágenes: ${geoImages.length}</p>
+            `;
+
+            if (!summaryMap) {
+                mapLayers.summary = createMapLayers('summary-map');
+                summaryMap = L.map('summary-map', {
+                    layers: [mapLayers.summary.streets]
+                }).setView([-41.4, -72.9], 7);
+                
+                document.getElementById('toggle-summary-map-type').addEventListener('click', function() {
+                    toggleMapType(summaryMap, mapLayers.summary);
+                });
+            }
+
+            updateSummaryMapMarkers();
+            updateImageDetails();
+            updateStatistics();
+        }
+
+        function updateSummaryMapMarkers() {
+            summaryMap.eachLayer((layer) => {
+                if (layer instanceof L.Marker) {
+                    summaryMap.removeLayer(layer);
+                }
+            });
+
+            geoImages.forEach((img, index) => {
+                if (img.lat && img.lng) {
+                    L.marker([img.lat, img.lng], {icon: createNumberedMarker(String(index + 1).padStart(2, '0'))})
+                        .addTo(summaryMap)
+                        .bindPopup(`
+                            <img src="${img.src}" width="200" class="rounded-lg mb-2">
+                            <p class="font-semibold">Imagen ${String(index + 1).padStart(2, '0')}</p>
+                            <p>${img.description}</p>
+                        `);
+                }
+            });
+
+            fitMapBounds(summaryMap);
+        }
+
+        function updateImageDetails() {
+            const imageDetailsDiv = document.getElementById('image-details');
+            imageDetailsDiv.innerHTML = '';
+            geoImages.forEach((img, index) => {
+                const imgElement = document.createElement('div');
+                imgElement.className = 'bg-gray-100 p-4 rounded-lg';
+                imgElement.innerHTML = `
+                    <img src="${img.src}" alt="Imagen ${index + 1}" class="w-full h-48 object-cover rounded-lg mb-2">
+                    <p class="font-semibold">Imagen ${index + 1}</p>
+                    <p><strong>Latitud:</strong> ${img.lat || 'N/A'}</p>
+                    <p><strong>Longitud:</strong> ${img.lng || 'N/A'}</p>
+                    <p><strong>Jaula:</strong> ${img.jaula || 'N/A'}</p>
+                    <p><strong>Descripción:</strong> ${img.description || 'N/A'}</p>
+                `;
+                imageDetailsDiv.appendChild(imgElement);
+            });
+        }
+
+        function updateStatistics() {
+            const statistics = document.getElementById('statistics');
+            statistics.innerHTML = `
+                <li>Total de imágenes: ${geoImages.length}</li>
+                <li>Número de jaulas: ${new Set(geoImages.map(img => img.jaula).filter(Boolean)).size}</li>
+                <li>Imágenes sin georreferencia: ${geoImages.filter(img => !img.lat || !img.lng).length}</li>
+            `;
+        }
+
+        function exportPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Portada
+            doc.setFontSize(36);
+            doc.setTextColor(59, 130, 246);
+            doc.text('Inspección de fondo', 105, 50, { align: 'center'});
+            doc.setFontSize(28);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Centro ${document.getElementById('centro').value}`, 105, 70, { align: 'center' });
+
+            if (logoServ) {
+                const img = new Image();
+                img.src = logoServ;
+                const aspectRatio = img.width / img.height;
+                const logoWidth = 30;
+                const logoHeight = logoWidth / aspectRatio;
+                doc.saveGraphicsState();
+                doc.setGState(new doc.GState({ opacity: 0.5 }));
+                doc.addImage(logoServ, 'JPEG', 170, 10, logoWidth, logoHeight);
+                doc.restoreGraphicsState();
+            }
+
+            if (logoMandante) {
+                const img = new Image();
+                img.src = logoMandante;
+                const aspectRatio = img.width / img.height;
+                const logoWidth = 60;
+                const logoHeight = logoWidth / aspectRatio;
+                doc.addImage(logoMandante, 'JPEG', (210 - logoWidth) / 2, 200, logoWidth, logoHeight);
+            }
+
+            // Página de datos generales
+            doc.addPage();
+            doc.setFontSize(24);
+            doc.setTextColor(59, 130, 246);
+            doc.text('Datos Generales', 105, 20, { align: 'center' });
+            
+            doc.setFontSize(12);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Centro: ${document.getElementById('centro').value}`, 20, 40);
+            doc.text(`Embarcación: ${document.getElementById('embarcacion').value}`, 20, 50);
+            doc.text(`Usuario: ${document.getElementById('usuario').value}`, 20, 60);
+            doc.text(`Fecha: ${document.getElementById('fecha').value}`, 20, 70);
+            
+            const comentarios = document.getElementById('comentarios').value;
+            const comentariosLines = doc.splitTextToSize(comentarios, 170);
+            doc.text('Comentarios:', 20, 80);
+            doc.text(comentariosLines, 20, 90);
+
+            // Añadir imágenes georreferenciadas
+            const pageWidth = doc.internal.pageSize.width;
+            const pageHeight = doc.internal.pageSize.height;
+            const margin = 10;
+            const imagesPerRow = 2;
+            const imagesPerColumn = 3;
+            const imagesPerPage = imagesPerRow * imagesPerColumn;
+            const imageWidth = (pageWidth - (imagesPerRow + 1) * margin) / imagesPerRow;
+            const imageHeight = (pageHeight - (imagesPerColumn + 1) * margin - 40) / imagesPerColumn;
+
+            for (let i = 0; i < geoImages.length; i++) {
+                if (i % imagesPerPage === 0) {
+                    doc.addPage();
+                    doc.setFontSize(24);
+                    doc.setTextColor(59, 130, 246);
+                    doc.text('Registro Fotográfico', pageWidth / 2, 20, { align: 'center' });
+                }
+
+                const img = geoImages[i];
+                const pageIndex = Math.floor(i / imagesPerPage);
+                const positionOnPage = i % imagesPerPage;
+                const row = Math.floor(positionOnPage / imagesPerRow);
+                const col = positionOnPage % imagesPerRow;
+
+                const xPosition = margin + col * (imageWidth + margin);
+                const yPosition = 40 + row * (imageHeight + margin);
+
+                // Mantener la relación de aspecto de la imagen
+                const imgAspectRatio = img.width / img.height;
+                let imgWidth = imageWidth;
+                let imgHeight = imageWidth / imgAspectRatio;
+                if (imgHeight > imageHeight) {
+                    imgHeight = imageHeight;
+                    imgWidth = imageHeight * imgAspectRatio;
+                }
+
+                const xOffset = (imageWidth - imgWidth) / 2;
+                const yOffset = (imageHeight - imgHeight) / 2;
+
+                doc.addImage(img.src, 'JPEG', xPosition + xOffset, yPosition + yOffset, imgWidth, imgHeight, null, 'FAST');
+                
+                doc.setFontSize(8);
+                doc.setTextColor(0, 0, 0);
+                doc.text(`Imagen ${i + 1}: Lat: ${img.lat}, Lng: ${img.lng}`, xPosition, yPosition + imageHeight + 5);
+                const descriptionLines = doc.splitTextToSize(`Descripción: ${img.description}`, imageWidth);
+                doc.text(descriptionLines, xPosition, yPosition + imageHeight + 10);
+            }
+
+            // Agregar nueva página para el mapa
+            doc.addPage();
+            doc.setFontSize(24);
+            doc.setTextColor(59, 130, 246);
+            doc.text('Mapa de Ubicaciones', pageWidth / 2, 20, { align: 'center' });
+
+            // Agregar imagen del mapa
+            const mapElement = document.getElementById('summary-map');
+            const mapWidth = mapElement.offsetWidth;
+            const mapHeight = mapElement.offsetHeight;
+            const mapAspectRatio = mapWidth / mapHeight;
+            const pdfMapWidth = 150;
+            const pdfMapHeight = pdfMapWidth / mapAspectRatio;
+
+            html2canvas(mapElement, {
+                useCORS: true,
+                scale: 2,
+                ignoreElements: (element) => element.classList.contains('map-type-toggle')
+            }).then(function(canvas) {
+                const imgData = canvas.toDataURL('image/png');
+                doc.addImage(imgData, 'PNG', (pageWidth - pdfMapWidth) / 2, 40,
+
+pdfMapWidth, pdfMapHeight);
+
+                // Agregar brújula (usando un carácter Unicode)
+                doc.setFontSize(24);
+                doc.setTextColor(59, 130, 246);
+                doc.text('☼', (pageWidth - pdfMapWidth) / 2, 40);
+
+                // Agregar nueva página para la tabla
+                doc.addPage();
+                doc.setFontSize(24);
+                doc.setTextColor(59, 130, 246);
+                doc.text('Tabla de Imágenes', pageWidth / 2, 20, { align: 'center' });
+
+                // Agregar tabla
+                const tableData = geoImages.map((img, index) => [
+                    index + 1,
+                    img.description,
+                    img.lng,
+                    img.lat,
+                    img.jaula || ''
+                ]);
+
+                doc.autoTable({
+                    head: [['ID', 'Observación', 'UTME', 'UTMN', 'Jaula']],
+                    body: tableData,
+                    startY: 40,
+                    theme: 'grid',
+                    styles: { fontSize: 8, cellPadding: 1, overflow: 'linebreak' },
+                    columnStyles: {
+                        0: { cellWidth: 20 },
+                        1: { cellWidth: 'auto' },
+                        2: { cellWidth: 30 },
+                        3: { cellWidth: 30 },
+                        4: { cellWidth: 20 }
+                    },
+                    headStyles: { fillColor: [59, 130, 246] }
+                });
+
+                // Agregar estadísticas
+                doc.addPage();
+                doc.setFontSize(24);
+                doc.setTextColor(59, 130, 246);
+                doc.text('Estadísticas', pageWidth / 2, 20, { align: 'center' });
+                doc.setFontSize(12);
+                doc.setTextColor(0, 0, 0);
+                const statistics = document.getElementById('statistics').innerText.split('\n');
+                statistics.forEach((stat, index) => {
+                    doc.text(stat, 20, 40 + (index * 10));
+                });
+
+                // Guardar el PDF
+                doc.save('informe_imagenes_geo.pdf');
+            });
+        }
+
+        function exportDOCX() {
+            const { Document, Packer, Paragraph, TextRun, ImageRun, Table, TableCell, TableRow, WidthType, AlignmentType, HeadingLevel } = docx;
+
+            const doc = new Document({
+                sections: [{
+                    properties: {},
+                    children: [
+                        new Paragraph({
+                            text: "Inspección de fondo",
+                            heading: HeadingLevel.HEADING_1,
+                            alignment: AlignmentType.CENTER,
+                        }),
+                        new Paragraph({
+                            text: `Centro ${document.getElementById('centro').value}`,
+                            heading: HeadingLevel.HEADING_2,
+                            alignment: AlignmentType.CENTER,
+                        }),
+                        new Paragraph({ text: "" }),
+                        new Paragraph({
+                            text: "Datos Generales",
+                            heading: HeadingLevel.HEADING_2,
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Centro: ", bold: true }),
+                                new TextRun(document.getElementById('centro').value),
+                            ],
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Embarcación: ", bold: true }),
+                                new TextRun(document.getElementById('embarcacion').value),
+                            ],
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Usuario: ", bold: true }),
+                                new TextRun(document.getElementById('usuario').value),
+                            ],
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Fecha: ", bold: true }),
+                                new TextRun(document.getElementById('fecha').value),
+                            ],
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Comentarios: ", bold: true }),
+                                new TextRun(document.getElementById('comentarios').value),
+                            ],
+                        }),
+                        new Paragraph({ text: "" }),
+                        new Paragraph({
+                            text: "Registro Fotográfico",
+                            heading: HeadingLevel.HEADING_2,
+                        }),
+                    ],
+                }],
+            });
+
+            // Agregar imágenes georreferenciadas
+            geoImages.forEach((img, index) => {
+                const imgBlob = dataURItoBlob(img.src);
+                doc.addSection({
+                    children: [
+                        new Paragraph({
+                            children: [
+                                new ImageRun({
+                                    data: imgBlob,
+                                    transformation: {
+                                        width: 400,
+                                        height: 300,
+                                    },
+                                }),
+                            ],
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({text: `Imagen ${index + 1}`, bold: true }),
+                            ],
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Latitud: ", bold: true }),
+                                new TextRun(img.lat || 'N/A'),
+                            ],
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Longitud: ", bold: true }),
+                                new TextRun(img.lng || 'N/A'),
+                            ],
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Jaula: ", bold: true }),
+                                new TextRun(img.jaula || 'N/A'),
+                            ],
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Descripción: ", bold: true }),
+                                new TextRun(img.description || 'N/A'),
+                            ],
+                        }),
+                        new Paragraph({ text: "" }),
+                    ],
+                });
+            });
+
+            // Agregar tabla de imágenes
+            const tableRows = geoImages.map((img, index) => 
+                new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph({ text: (index + 1).toString() })] }),
+                        new TableCell({ children: [new Paragraph({ text: img.description || '' })] }),
+                        new TableCell({ children: [new Paragraph({ text: img.lng || '' })] }),
+                        new TableCell({ children: [new Paragraph({ text: img.lat || '' })] }),
+                        new TableCell({ children: [new Paragraph({ text: img.jaula || '' })] }),
+                    ],
+                })
+            );
+
+            const table = new Table({
+                rows: [
+                    new TableRow({
+                        children: [
+                            new TableCell({ children: [new Paragraph({ text: "ID", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "Observación", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "UTME", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "UTMN", bold: true })] }),
+                            new TableCell({ children: [new Paragraph({ text: "Jaula", bold: true })] }),
+                        ],
+                    }),
+                    ...tableRows,
+                ],
+            });
+
+            doc.addSection({
+                children: [
+                    new Paragraph({
+                        text: "Tabla de Imágenes",
+                        heading: HeadingLevel.HEADING_2,
+                    }),
+                    table,
+                    new Paragraph({ text: "" }),
+                    new Paragraph({
+                        text: "Estadísticas",
+                        heading: HeadingLevel.HEADING_2,
+                    }),
+                    ...document.getElementById('statistics').innerText.split('\n').map(stat => 
+                        new Paragraph({ text: stat })
+                    ),
+                ],
+            });
+
+            Packer.toBlob(doc).then(blob => {
+                saveAs(blob, "informe_imagenes_geo.docx");
+            });
+        }
+
+        function dataURItoBlob(dataURI) {
+            const byteString = atob(dataURI.split(',')[1]);
+            const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: mimeString });
+        }
+
+        function captureMap() {
+            html2canvas(document.getElementById('summary-map'), {useCORS: true}).then(function(canvas) {
+                const imgData = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = imgData;
+                link.download = 'mapa_capturado.png';
+                link.click();
+            });
+        }
+
+        document.getElementById('logo-servicio-upload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    logoServ = e.target.result;
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.className = 'w-32 h-auto rounded-lg shadow-md';
+                    document.getElementById('logo-servicio-preview').innerHTML = '';
+                    document.getElementById('logo-servicio-preview').appendChild(img);
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById('logo-mandante-upload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    logoMandante = e.target.result;
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.className = 'w-32 h-auto rounded-lg shadow-md';
+                    document.getElementById('logo-mandante-preview').innerHTML = '';
+                    document.getElementById('logo-mandante-preview').appendChild(img);
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById('image-upload').addEventListener('change', function(event) {
+            const files = event.target.files;
+            for (let file of files) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const imgData = {
+                            src: e.target.result,
+                            lat: '',
+                            lng: '',
+                            description: '',
+                            jaula: '',
+                            width: img.width,
+                            height: img.height
+                        };
+                        geoImages.push(imgData);
+                        updateImageList();
+                    }
+                    img.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function updateImageList() {
+            const imageList = document.getElementById('image-list');
+            imageList.innerHTML = '';
+            geoImages.forEach((img, index) => {
+                const div = document.createElement('div');
+                div.className = 'bg-white rounded-lg shadow-lg p-4 transition-transform duration-300 hover:scale-105';
+                div.innerHTML = `
+                    <img src="${img.src}" class="w-full h-48 object-cover rounded-lg mb-4">
+                    <input type="text" placeholder="Latitud" value="${img.lat}" onchange="updateGeoImage(${index}, 'lat', this.value)" class="w-full p-2 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <input type="text" placeholder="Longitud" value="${img.lng}" onchange="updateGeoImage(${index}, 'lng', this.value)" class="w-full p-2 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <input type="text" placeholder="Jaula" value="${img.jaula || ''}" onchange="updateGeoImage(${index}, 'jaula', this.value)" class="w-full p-2 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <textarea placeholder="Descripción" onchange="updateGeoImage(${index}, 'description', this.value)" class="w-full p-2 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400">${img.description}</textarea>
+                    <div class="flex justify-between">
+                        <button onclick="openMapPopup(${index})" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition duration-300">
+                            <i class="fas fa-map-marker-alt mr-2"></i>Seleccionar en mapa
+                        </button>
+                        <button onclick="removeImage(${index})" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition duration-300">
+                            <i class="fas fa-trash-alt mr-2"></i>Quitar imagen
+                        </button>
+                    </div>
+                `;
+                imageList.appendChild(div);
+            });
+            updateMapMarkers();
+        }
+
+        function removeImage(index) {
+            geoImages.splice(index, 1);
+            updateImageList();
+            updateMapMarkers();
+            if (summaryMap) {
+                updateSummaryMapMarkers();
+            }
+        }
+
+        function updateGeoImage(index, field, value) {
+            geoImages[index][field] = value;
+            if (field === 'lat' || field === 'lng') {
+                updateMapMarkers();
+                if (summaryMap) {
+                    updateSummaryMapMarkers();
+                }
+            }
+        }
+
+        function updateMapMarkers() {
+            if (map) {
+                Object.values(markers).forEach(marker => {
+                    if (map.hasLayer(marker)) {
+                        map.removeLayer(marker);
+                    }
+                });
+                markers = {};
+
+                geoImages.forEach((img, index) => {
+                    if (img.lat && img.lng) {
+                        const markerKey = `main_${index}`;
+                        markers[markerKey] = L.marker([img.lat, img.lng], {icon: createNumberedMarker(String(index + 1).padStart(2, '0'))})
+                            .addTo(map)
+                            .bindPopup(`
+                                <img src="${img.src}" width="200" class="rounded-lg mb-2">
+                                <p class="font-semibold">Imagen ${String(index + 1).padStart(2, '0')}</p>
+                                <p>${img.description}</p>
+                            `);
+                    }
+                });
+
+                fitMapBounds(map);
+            }
+        }
+
+        function fitMapBounds(mapInstance) {
+            const bounds = L.latLngBounds();
+            mapInstance.eachLayer((layer) => {
+                if (layer instanceof L.Marker) {
+                    bounds.extend(layer.getLatLng());
+                }
+            });
+            
+            if (bounds.isValid()) {
+                mapInstance.fitBounds(bounds);
+            }
+        }
+
+        function openMapPopup(index) {
+            currentImageIndex = index;
+            document.getElementById('map-popup').style.display = 'flex';
+            if (!popupMap) {
+                mapLayers.popup = createMapLayers('popup-map');
+                popupMap = L.map('popup-map', {
+                    layers: [mapLayers.popup.streets]
+                }).setView([-41.4, -72.9], 7);
+                
+                document.getElementById('toggle-popup-map-type').addEventListener('click', function() {
+                    toggleMapType(popupMap, mapLayers.popup);
+                });
+
+                popupMap.on('click', function(e) {
+                    if (window.popupMarker) {
+                        popupMap.removeLayer(window.popupMarker);
+                    }
+                    window.popupMarker = L.marker(e.latlng, {icon: createNumberedMarker(String(currentImageIndex + 1).padStart(2, '0'))}).addTo(popupMap);
+                });
+            }
+            popupMap.invalidateSize();
+
+            // Agregar marcadores existentes al mapa emergente
+            geoImages.forEach((img, idx) => {
+                if (img.lat && img.lng) {
+                    L.marker([img.lat, img.lng], {icon: createNumberedMarker(String(idx + 1).padStart(2, '0'))})
+                        .addTo(popupMap)
+                        .bindPopup(`
+                            <img src="${img.src}" width="200" class="rounded-lg mb-2">
+                            <p class="font-semibold">Imagen ${String(idx + 1).padStart(2, '0')}</p>
+                            <p>${img.description}</p>
+                        `);
+                }
+            });
+
+            fitMapBounds(popupMap);
+        }
+
+        function closePopup() {
+            document.getElementById('map-popup').style.display = 'none';
+        }
+
+        document.getElementById('accept-location').addEventListener('click', function() {
+            if (window.popupMarker && currentImageIndex !== null) {
+                const latlng = window.popupMarker.getLatLng();
+                updateGeoImage(currentImageIndex, 'lat', latlng.lat.toFixed(6));
+                updateGeoImage(currentImageIndex, 'lng', latlng.lng.toFixed(6));
+                
+                updateImageList();
+                closePopup();
+            }
+        });
+
+        updateButtons();
+    </script>
+</body>
+</html>
